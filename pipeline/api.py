@@ -1,3 +1,4 @@
+import hmac
 import json
 import logging
 import os
@@ -37,8 +38,10 @@ INFERENCE_LATENCY = Histogram(
 
 # ── Optional API key auth ─────────────────────────────────────────────────────
 async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> None:
-    if API_KEY and x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
+    if API_KEY:
+        provided = x_api_key or ""
+        if not hmac.compare_digest(provided, API_KEY):
+            raise HTTPException(status_code=401, detail="Invalid or missing X-API-Key")
 
 
 MODEL    = None

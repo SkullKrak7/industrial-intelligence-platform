@@ -59,8 +59,11 @@ class PredictionsHandler:
 def _poll_loop(handler: PredictionsHandler, interval_s: float = 2.0) -> None:
     """Fallback polling loop used when watchdog is unavailable."""
     while True:
-        if os.path.exists(PREDICTIONS_PATH):
-            handler.on_change()
+        try:
+            if os.path.exists(PREDICTIONS_PATH):
+                handler.on_change()
+        except Exception as e:
+            print(f"[watcher] poll error (continuing): {e}", flush=True)
         time.sleep(interval_s)
 
 

@@ -8,18 +8,20 @@ def init_db():
     """Creates a database table for storing sensor data"""
     db_path = os.path.join(BASE_DIR, "sensor_data.db")
     conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sensors(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT,
-            temperature REAL,
-            vibration REAL,
-            pressure REAL
-        )
-    ''')
-    conn.commit()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sensors(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT,
+                temperature REAL,
+                vibration REAL,
+                pressure REAL
+            )
+        ''')
+        conn.commit()
+    finally:
+        conn.close()
     print("Database initialized successfully!!!")
 
 if __name__ == "__main__":
