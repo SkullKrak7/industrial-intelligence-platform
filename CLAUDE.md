@@ -66,7 +66,7 @@ The twin watches `data/predictions.csv` using Python `watchdog` (OS filesystem e
 
 ## Version-specific gotchas
 
-- **MLflow 2.x**: Model stages (`Staging`, `Production`) are deprecated. Use **aliases** — `client.set_registered_model_alias(name, "champion", version)`. Always load via alias: `mlflow.sklearn.load_model("models:/ModelName@champion")`. Never load from a local file path. `@champion` is the MLflow-recommended alias name for the model serving production traffic.
+- **MLflow 2.x**: Model stages (`Staging`, `Production`) are deprecated. Use **aliases** — `client.set_registered_model_alias(name, "champion", version)`. Load via `@champion` alias — see Rule 4 for the exact pattern (it is not `mlflow.sklearn.load_model`; it uses `get_model_version_by_alias()` + `download_artifacts()`). `@champion` is the MLflow-recommended alias name for the model serving production traffic.
 - **dbt-duckdb**: Requires the `dbt-duckdb` adapter (`pip install dbt-duckdb`), not `dbt-core` alone. The dbt profile target must point to DuckDB, not Postgres.
 - **Dagster assets**: `@asset` functions must be idempotent — they are retried on failure. Any asset writing to a file, registry, or database must be safe to re-run without duplicating or corrupting state.
 - **FastAPI vs Flask**: Request bodies require Pydantic `BaseModel`, not raw dicts. Route decorators are `@app.post("/v1/predict")` not `@app.route(..., methods=["POST"])`. No `app.run()` — use `uvicorn` to serve.
@@ -98,6 +98,10 @@ dagster dev -f orchestration/dagster_pipeline.py       # Dagster UI
 mlflow server --host 0.0.0.0 --port 5001               # MLflow tracking server
 
 # ── Integration smoke test (requires live API on port 8000) ───────────────────
+# Checks: /health (200 + status=ok), /metrics (Prometheus format), POST /v1/predict
+# with a known-good SensorReading (asserts machine_id/confidence/anomaly/threshold in
+# response and confidence in [0,1]), 422 on invalid type, 422 on out-of-range value,
+# and auth 401/200 when API_KEY is set. Exit 0 = all checks passed, 1 = any failure.
 python scripts/smoke_test.py
 # With auth enabled:
 API_KEY=your_key python scripts/smoke_test.py
@@ -185,7 +189,7 @@ Three SQL model layers against DuckDB (in-process, no infra):
 - `int_feature_engineering` — derived features: `temp_differential`, `power_output`, `tool_wear_pct`
 - `mart_equipment_health` — per-machine aggregates: `avg_tool_wear`, `total_failures`, `peak_power`
 
-`dbt/models/schema.yml` defines column-level tests — at minimum `not_null` on `machine_id` and `unique` on `machine_id` in the mart model. Dagster calls `dbt run`. This is the entire data engineering layer.
+`dbt/models/schema.yml` defines column-level tests — `not_null` on `machine_id` in all three model layers, plus `unique` on `machine_id` in the mart model (enforcing one row per machine in the aggregated output). Dagster calls `dbt run`. This is the entire data engineering layer.
 
 ### Layer 4 — Orchestration (`orchestration/`)
 Five Dagster assets in dependency order:

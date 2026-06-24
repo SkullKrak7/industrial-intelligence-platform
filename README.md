@@ -182,5 +182,7 @@ Grafana credentials: **admin / admin**. Both datasources appear immediately afte
 | 1 — Merge repos, docker compose up | Done |
 | 2 — FastAPI migration, fix vectorize bug, MLflow wiring | Done |
 | 3 — Calibrated data_gen, dbt models, watchdog, Dagster | Done |
-| 4 — Dagster in docker-compose, healthchecks, structured logging, auth | Done |
-| 5 — CI workflows, smoke test, F1 calibration, Prometheus/Grafana/Loki, repo hardening | Done |
+| 4 — Dagster 5 assets, MLflow wiring, healthchecks, core bug fixes | Done |
+| 4.5 — Structured JSON logging, API key auth, column validation, retrain.yml | Done |
+| 5 — F1 threshold calibration, smoke test, auth tests, requirements fixes | Done |
+| 5.5 — Prometheus /metrics format, Grafana + Loki + Promtail, retrain.yml fixes | Done |
