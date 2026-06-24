@@ -2,9 +2,13 @@ __pycache__/
 *.py[cod]
 *.pkl
 *.db
+*.log
 .env
 .venv/
 venv/
+
+# macOS
+.DS_Store
 
 # Generated at runtime — not committed
 data/telemetry_stream.csv
@@ -13,8 +17,9 @@ data/predictions.csv
 # MLflow run artefacts
 mlflow/
 
-# dbt compilation artefacts
+# dbt compilation and log artefacts
 dbt/target/
+dbt/logs/
 dbt/.user.yml
 
 # Pipeline outputs (model artefacts tracked in MLflow, not git)
@@ -24,6 +29,11 @@ pipeline/model.pkl
 # Twin original data dir and local DB
 twin/data/
 twin/*.db
+
+# Test / coverage artefacts
+.pytest_cache/
+.coverage
+htmlcov/
 
 # IDE
 .idea/

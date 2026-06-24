@@ -38,8 +38,7 @@ docker-compose.override.yml
 saved_model.pkl
 
 model.pkl
-outputs/*
-!outputs/metrics.json
+outputs/
 
 data/
 
