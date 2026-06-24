@@ -6,7 +6,7 @@ import time
 from typing import Optional
 
 import numpy as np
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import Response
 from prometheus_client import (
     Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST,
@@ -87,7 +87,11 @@ try:
     _load_from_mlflow()
 except Exception as e:
     logger.warning(json.dumps({"event": "mlflow_unavailable", "error": str(e), "fallback": "model.pkl"}))
-    _load_from_pkl()
+    try:
+        _load_from_pkl()
+    except Exception as pkl_err:
+        logger.error(json.dumps({"event": "model_load_failed", "error": str(pkl_err)}))
+        # MODEL stays None — predict() returns 503 until a model becomes available
 
 
 # ── Inference ─────────────────────────────────────────────────────────────────
@@ -118,7 +122,12 @@ def metrics():
     response_model=PredictResponse,
     dependencies=[Depends(verify_api_key)],
 )
-def predict(payload: SensorReading, threshold: float = 0.5):
+def predict(
+    payload: SensorReading,
+    threshold: float = Query(default=0.5, ge=0.0, le=1.0),
+):
+    if MODEL is None:
+        raise HTTPException(status_code=503, detail="Model not loaded — check MLflow or rebuild the image")
     t0    = time.time()
     X     = vectorize(payload)
     proba = (

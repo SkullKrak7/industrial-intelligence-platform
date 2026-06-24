@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 
 
 class SensorReading(BaseModel):
-    machine_id: str
+    machine_id: str = Field(..., max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     rotational_speed: float = Field(..., ge=1100, le=3000, description="rpm")
     torque: float = Field(..., ge=0, le=100, description="Nm")
     tool_wear: float = Field(..., ge=0, le=300, description="minutes")

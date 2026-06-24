@@ -12,18 +12,17 @@ def store_sensor_data():
     db_path = os.path.join(BASE_DIR, "sensor_data.db")
 
     conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    df = pd.read_csv(csv_path)
-
-    for _, row in df.iterrows():
-        cursor.execute(
-            "INSERT INTO sensors(timestamp, temperature, vibration, pressure) VALUES (?,?,?,?)",
-            (row["timestamp"], row["temperature"], row["vibration"], row["pressure"])
-        )
-
-    conn.commit()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        df = pd.read_csv(csv_path)
+        for _, row in df.iterrows():
+            cursor.execute(
+                "INSERT INTO sensors(timestamp, temperature, vibration, pressure) VALUES (?,?,?,?)",
+                (row["timestamp"], row["temperature"], row["vibration"], row["pressure"])
+            )
+        conn.commit()
+    finally:
+        conn.close()
     print("Sensor data stored in database successfully!")
 
 if __name__ == "__main__":

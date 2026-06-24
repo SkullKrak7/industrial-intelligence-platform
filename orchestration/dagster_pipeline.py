@@ -1,3 +1,4 @@
+import csv
 import os
 import pickle
 import subprocess
@@ -180,9 +181,10 @@ def write_predictions(
     rows_written = 0
     errors       = 0
 
-    with open(PREDICTIONS_PATH, "a") as fh:
+    with open(PREDICTIONS_PATH, "a", newline="") as fh:
+        writer = csv.writer(fh)
         if write_header:
-            fh.write("timestamp,machine_id,confidence,anomaly,threshold\n")
+            writer.writerow(["timestamp", "machine_id", "confidence", "anomaly", "threshold"])
 
         for _, row in raw_telemetry.iterrows():
             ts = str(row.get("timestamp", ""))
@@ -203,10 +205,10 @@ def write_predictions(
                 if resp.status_code == 200:
                     body = resp.json()
                     ts   = row.get("timestamp", datetime.now().isoformat())
-                    fh.write(
-                        f"{ts},{body['machine_id']},{body['confidence']},"
-                        f"{body['anomaly']},{body['threshold']}\n"
-                    )
+                    writer.writerow([
+                        ts, body["machine_id"], body["confidence"],
+                        body["anomaly"], body["threshold"],
+                    ])
                     seen_timestamps.add(str(ts))
                     rows_written += 1
                 else:

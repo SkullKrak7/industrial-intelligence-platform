@@ -14,8 +14,10 @@ def load_sensor_data() -> pd.DataFrame:
     """Load sensor readings from SQLite into a DataFrame."""
     db_path = os.path.join(BASE_DIR, "sensor_data.db")
     conn = sqlite3.connect(db_path)
-    df = pd.read_sql_query("SELECT * FROM sensors", conn)
-    conn.close()
+    try:
+        df = pd.read_sql_query("SELECT * FROM sensors", conn)
+    finally:
+        conn.close()
     return df
 
 
