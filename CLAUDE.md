@@ -8,40 +8,49 @@
 
 | Layer | Technology |
 |---|---|
-| API | FastAPI (migrated from Flask) |
-| ML | scikit-learn + MLflow (experiment tracking + model registry) |
+| API | FastAPI + uvicorn (migrated from Flask) |
+| ML | XGBoost + scikit-learn + MLflow (experiment tracking + model registry) |
 | Data transform | dbt + DuckDB (local, zero-infra, runs in-process) |
-| Orchestration | Dagster (asset-based pipeline + daily schedule) |
-| Digital Twin | Python (`twin/` — from Digital-Twin repo) |
-| Containerisation | Docker Compose (merged Dockerfiles from both repos) |
-| CI/CD | GitHub Actions |
+| Orchestration | Dagster (5 assets + daily schedule) |
+| Digital Twin | Python asyncio simulation (`twin/`) |
+| Observability | Prometheus + Loki + Promtail + Grafana |
+| Containerisation | Docker Compose — 10 services |
+| CI/CD | GitHub Actions (`ci.yml` + `retrain.yml`) |
 | Language | Python 3.11+ |
-| Dataset | `predictive_maintenance.csv` (521KB, real Kaggle dataset) |
+| Dataset | `pipeline/predictive_maintenance.csv` (521 KB, AI4I 2020 Kaggle) |
 
 ## Repo structure
 
 ```
 industrial-intelligence-platform/
-├── twin/                    ← Digital-Twin (app/, scripts/, main.py, data/)
+├── twin/                         ← Digital twin sim (app/, scripts/)
 ├── pipeline/
-│   ├── train_model.py       ← trains model, logs all runs to MLflow
-│   ├── api.py               ← FastAPI serving /v1/predict (was flask_app.py)
-│   ├── models.py            ← Pydantic schemas (SensorReading, PredictResponse)
-│   └── outputs/
+│   ├── api.py                    ← FastAPI /v1/predict + /health + /metrics
+│   ├── train_model.py            ← XGBoost + MLflow logging + @champion promotion
+│   ├── models.py                 ← Pydantic schemas (SensorReading, PredictResponse)
+│   ├── predictive_maintenance.csv
+│   └── tests/                    ← pytest suite (functional + auth)
 ├── dbt/
 │   └── models/
-│       ├── staging/         ← stg_sensor_readings.sql
-│       ├── intermediate/    ← int_feature_engineering.sql
-│       └── mart/            ← mart_equipment_health.sql
+│       ├── staging/              ← stg_sensor_readings.sql
+│       ├── intermediate/         ← int_feature_engineering.sql
+│       └── mart/                 ← mart_equipment_health.sql
 ├── orchestration/
-│   └── dagster_pipeline.py  ← 5 assets + daily schedule
-├── data/
-│   ├── predictive_maintenance.csv
-│   ├── telemetry_stream.csv     ← twin writes, pipeline reads
-│   └── predictions.csv          ← pipeline writes, twin reads (generated at runtime)
-├── tests/                   ← existing tests from pipeline repo
-├── docker-compose.yml       ← merged from both repos
-└── requirements.txt         ← merged from both repos
+│   └── dagster_pipeline.py       ← 5 Dagster assets + daily schedule
+├── observability/
+│   ├── prometheus.yml            ← scrape config (pipeline-api:8000/metrics)
+│   ├── loki-config.yml
+│   ├── promtail-config.yml       ← reads from Docker socket
+│   └── grafana/provisioning/     ← Prometheus + Loki datasources pre-wired
+├── scripts/
+│   └── smoke_test.py             ← integration smoke test (run after stack is up)
+├── .github/workflows/
+│   ├── ci.yml                    ← lint + test + Docker build on every push
+│   └── retrain.yml               ← retrain on train_model.py / CSV changes
+├── data/                         ← telemetry_stream.csv + predictions.csv (runtime only)
+├── docker-compose.yml
+├── .env.example
+└── requirements.txt              ← root deps (dagster, dbt-duckdb, mlflow, pandas …)
 ```
 
 ## Integration interface
@@ -77,6 +86,9 @@ docker compose up --build
 #   8000  →  Pipeline API  (Swagger: /docs)
 #   5001  →  MLflow UI
 #   3000  →  Dagster UI
+#   3001  →  Grafana  (admin / $GRAFANA_ADMIN_PASSWORD)
+#   9090  →  Prometheus
+#   3100  →  Loki
 
 # ── Individual components (local dev, no Docker) ──────────────────────────────
 cd pipeline && python train_model.py                   # train + log to MLflow
@@ -113,9 +125,6 @@ When investigating: read, observe, report. Do not modify `predictive_maintenance
 ### 4. MLflow: always use aliases, never file paths
 `api.py` resolves `@champion` via `MlflowClient().get_model_version_by_alias()`, then downloads the composite `model.pkl` from the run's artifact store with `mlflow.artifacts.download_artifacts()`. Never load directly from `model.pkl` on disk — the alias guarantees the API always serves the correct registered version. The local `model.pkl` is baked into the Docker image at build time as a fallback when the MLflow server is unreachable.
 
-### 10. F1 threshold is calibrated, not arbitrary
-The 3-feature XGBoost model on AI4I 2020 achieves ~0.737 macro-F1 (not 0.85). Macro-F1 is penalised by the ~4% failure-class minority. The `F1_THRESHOLD` env var defaults to `0.70`. Do not raise it above 0.74 without retraining with additional features or a larger dataset — `@champion` will never be set and the API will always serve the fallback pkl.
-
 ### 5. dbt models must run clean before declaring done
 Run `dbt run --project-dir dbt/` and confirm all three models pass before reporting dbt work as complete.
 
@@ -134,6 +143,9 @@ A bug fix does not need surrounding refactors. A one-shot feature does not need 
 ### 9. Web research
 When researching, include the current month and year in queries (e.g. "June 2026"). Prefer official docs over blog posts. Stop at 3 sources if the answer is clear.
 For genuine unknowns that need broader coverage, see **AGENTS.md → Web research protocol**.
+
+### 10. F1 threshold is calibrated, not arbitrary
+The 3-feature XGBoost model on AI4I 2020 achieves ~0.737 macro-F1 (not 0.85). Macro-F1 is penalised by the ~4% failure-class minority. The `F1_THRESHOLD` env var defaults to `0.70`. Do not raise it above 0.74 without retraining with additional features or a larger dataset — `@champion` will never be set and the API will always serve the fallback pkl.
 
 ---
 
@@ -180,7 +192,7 @@ Five Dagster assets in dependency order:
 1. `raw_telemetry` — reads `telemetry_stream.csv`
 2. `dbt_models` — calls `dbt run`
 3. `retrain_model` — runs `train_model.py`, logs to MLflow, registers new version
-4. `model_health_check` — gates promotion only: F1 > 0.85 → set `@champion` alias; else alert, keep current version
+4. `model_health_check` — gates promotion only: F1 > 0.70 → set `@champion` alias; else alert, keep current version
 5. `write_predictions` — calls `/v1/predict` with telemetry data, writes anomaly flags to `data/predictions.csv`
 
 Splitting 4 and 5 keeps concerns separate: promotion is a registry operation, write-back is a serving operation. Produces a cleaner asset graph for the portfolio screenshot.

@@ -21,7 +21,7 @@ Point CLAUDE.md at this file with "@AGENTS.md" on its first line.
 1. Read `CLAUDE.md` in full — stack, version gotchas, rules, architecture.
 2. Read every file you plan to touch. Understand the existing pattern before inventing one.
 3. Check `pipeline/models.py` for canonical Pydantic schemas. Never duplicate them.
-4. Check `tests/` to understand test patterns before writing new tests.
+4. Check `pipeline/tests/` to understand test patterns before writing new tests.
 5. If the task spans more than 3 files or touches a shared abstraction: state your plan
    in 2–3 sentences and wait for approval before writing code.
 
@@ -62,12 +62,13 @@ findings. Do not mutate records unless the user explicitly instructs it.
 
 ## Secrets and security
 
-The CI runs a secret-leak scan on every push. It flags:
-- Variable assignments with literal string values: `KEY\s*=\s*["']`
-- Raw JWT strings > 100 chars: `eyJ[A-Za-z0-9_-]{100,}`
-- All source file types including `*.mjs` — scripts are not exempt
+Never assign a literal credential, even temporarily. Always use `os.getenv("MY_SECRET")`.
 
-Always use `os.getenv("MY_SECRET")` or `os.environ["MY_SECRET"]`. Never assign a literal credential, even temporarily.
+Additional security rules enforced in this codebase:
+- **API key comparison** — use `hmac.compare_digest(provided, expected)`, never `!=`. String equality is not constant-time.
+- **Flask debug mode** — `debug=False` in all services. `debug=True` exposes an interactive debugger that allows arbitrary code execution.
+- **Database connections** — always use `try/finally: conn.close()`. Context managers (`with sqlite3.connect(…) as conn`) handle transactions but do not close the connection.
+- **CSV writes with user data** — use `csv.writer`, never f-string formatting. Fields from API responses can contain commas or newlines that corrupt raw CSV output.
 
 ## Framework-specific gotchas
 
@@ -89,6 +90,10 @@ The standing rule: **do not assume library behaviour matches training data.** Wh
 - **Secret in source?** Any API key, MLflow tracking URI with credentials, or cloud storage key assigned inline is permanently in git history on push. Always use environment variables.
 - **Pydantic v2 API?** Use `model.model_dump()` not `model.dict()`. Use `model_validator` not `validator`. Check the installed Pydantic version if uncertain.
 - **Tests still green?** Run `pytest pipeline/tests/` after every change. The pipeline repo has existing tests that must not regress.
+- **API key comparison constant-time?** Use `hmac.compare_digest()`. The `!=` operator leaks timing information.
+- **Flask debug mode off?** `debug=True` on `0.0.0.0` allows remote code execution from any container on the network.
+- **SQLite connection closed on exception?** Use `try/finally: conn.close()` — context managers do not close SQLite connections.
+- **CSV field from user input?** Use `csv.writer` — raw f-string writes break if the field contains commas or newlines.
 
 ## Web research protocol
 
