@@ -1,0 +1,12 @@
+fastapi
+httpx
+matplotlib
+mlflow
+numpy
+pandas
+prometheus-client
+pydantic
+scikit-learn
+seaborn
+uvicorn[standard]
+xgboost

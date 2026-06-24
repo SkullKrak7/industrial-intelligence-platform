@@ -1,0 +1,17 @@
+# Root .dockerignore — used by the orchestration build context (context: .)
+__pycache__/
+*.pyc
+*.pyo
+*.pkl
+*.db
+.env
+venv/
+.venv/
+*.log
+data/
+mlflow/
+dbt/target/
+outputs/
+twin/
+.git/
+.github/

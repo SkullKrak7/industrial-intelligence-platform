@@ -1,0 +1,12 @@
+dash
+Flask
+joblib
+matplotlib
+numpy
+pandas
+plotly
+Requests
+scikit-learn
+seaborn
+watchdog
+xgboost

@@ -1,0 +1,131 @@
+services:
+
+  # ── Twin layer ────────────────────────────────────────────────────────────
+  twin-sim:
+    build:
+      context: ./twin
+    volumes:
+      - ./twin:/app
+      - ./data:/app/data
+    # Startup order: seed CSV → create DB tables → load DB → start async loop
+    command: >
+      sh -c "python -c 'from scripts.data_gen import generate_sensor_data; generate_sensor_data()' &&
+             python scripts/init_db.py &&
+             python scripts/store_data.py &&
+             python scripts/data_gen.py"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import sqlite3; sqlite3.connect('sensor_data.db').execute('SELECT 1 FROM sensors LIMIT 1').fetchone()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  twin-api:
+    build:
+      context: ./twin
+    volumes:
+      - ./twin:/app
+      - ./data:/app/data
+    command: python app/api.py
+    depends_on:
+      twin-sim:
+        condition: service_healthy
+
+  twin-dashboard:
+    build:
+      context: ./twin
+    ports:
+      - "8050:8050"
+    volumes:
+      - ./twin:/app
+      - ./data:/app/data
+    command: python app/dashboard.py
+    depends_on:
+      - twin-api
+
+  # ── Pipeline layer ────────────────────────────────────────────────────────
+  pipeline-api:
+    build:
+      context: ./pipeline
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./pipeline:/app
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      - twin-api
+
+  # ── MLflow tracking server ────────────────────────────────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./mlflow:/mlruns
+    command: mlflow server --host 0.0.0.0 --port 5000
+
+  # ── Dagster orchestration ─────────────────────────────────────────────────
+  dagster:
+    build:
+      context: .
+      dockerfile: orchestration/Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    depends_on:
+      pipeline-api:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+
+  # ── Observability stack ───────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command: --config.file=/etc/prometheus/prometheus.yml
+    depends_on:
+      pipeline-api:
+        condition: service_healthy
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./observability/loki-config.yml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    depends_on:
+      - prometheus
+      - loki

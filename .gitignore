@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+*.pkl
+*.db
+.env
+.venv/
+venv/
+
+# Generated at runtime — not committed
+data/telemetry_stream.csv
+data/predictions.csv
+
+# MLflow run artefacts
+mlflow/
+
+# dbt compilation artefacts
+dbt/target/
+dbt/.user.yml
+
+# Pipeline outputs (model artefacts tracked in MLflow, not git)
+pipeline/outputs/
+pipeline/model.pkl
+
+# Twin original data dir and local DB
+twin/data/
+twin/*.db
+
+# IDE
+.idea/
+.vscode/

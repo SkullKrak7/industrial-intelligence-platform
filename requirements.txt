@@ -1,0 +1,18 @@
+# Orchestration + data transform layer
+dagster
+dagster-webserver
+dbt-duckdb
+
+# Data
+pandas
+requests
+
+# ML tracking
+mlflow
+
+# API
+fastapi
+uvicorn[standard]
+
+# Twin file-watcher
+watchdog

@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: stg_sensor_readings
+    description: Raw telemetry from telemetry_stream.csv — typed and renamed.
+    columns:
+      - name: machine_id
+        description: Machine identifier.
+        tests:
+          - not_null
+
+  - name: int_feature_engineering
+    description: Derived features added to staged sensor readings.
+    columns:
+      - name: machine_id
+        tests:
+          - not_null
+
+  - name: mart_equipment_health
+    description: Per-machine aggregates for dashboarding and alerting.
+    columns:
+      - name: machine_id
+        tests:
+          - not_null
+          - unique

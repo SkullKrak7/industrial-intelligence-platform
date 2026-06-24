@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: pipeline-api
+    static_configs:
+      - targets:
+          - pipeline-api:8000
+    metrics_path: /metrics

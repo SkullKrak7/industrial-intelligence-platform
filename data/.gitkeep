@@ -1,0 +1,2 @@
+# telemetry_stream.csv and predictions.csv are generated at runtime by docker compose up.
+# They are intentionally excluded from git (see root .gitignore).
