@@ -1,7 +1,7 @@
 with source as (
     select *
     from read_csv_auto(
-        '{{ env_var("TELEMETRY_PATH", "../data/telemetry_stream.csv") }}',
+        '{{ env_var("TELEMETRY_PATH", "data/telemetry_stream.csv") }}',
         header = true,
         auto_detect = true
     )

@@ -3,5 +3,5 @@ industrial_intelligence:
   outputs:
     dev:
       type: duckdb
-      path: "{{ env_var('DUCKDB_PATH', '../data/warehouse.duckdb') }}"
+      path: "{{ env_var('DUCKDB_PATH', 'data/warehouse.duckdb') }}"
       threads: 4
