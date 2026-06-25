@@ -76,7 +76,7 @@ See `CLAUDE.md → Version-specific gotchas` for the full list. Key ones:
 
 - **MLflow 2.x aliases**: Do not use `.transition_model_version_stage()` — stages are deprecated. Use `client.set_registered_model_alias()` instead.
 - **dbt-duckdb**: `dbt-core` alone is not enough. Must install `dbt-duckdb`. Profile must target DuckDB, not Postgres.
-- **FastAPI**: No `app.run()`. Serve with `uvicorn pipeline.api:app`. Pydantic v2 is the default — use `model.model_dump()` not `model.dict()`.
+- **FastAPI**: No `app.run()`. Serve with `uvicorn api:app` from inside `pipeline/` — `api.py` uses bare imports (`from models import …`), so running `uvicorn pipeline.api:app` from the repo root fails with `ModuleNotFoundError`. Pydantic v2 is the default — use `model.model_dump()` not `model.dict()`.
 - **Dagster**: `@asset` outputs must be deterministic and idempotent. Re-running an asset must not duplicate MLflow runs or CSV rows.
 
 The standing rule: **do not assume library behaviour matches training data.** When using any API that could have changed between versions, check the installed package source or changelog first.

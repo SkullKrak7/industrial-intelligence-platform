@@ -26,7 +26,7 @@ industrial-intelligence-platform/
 ├── twin/                         ← Digital twin sim (app/, scripts/)
 ├── pipeline/
 │   ├── api.py                    ← FastAPI /v1/predict + /health + /metrics
-│   ├── train_model.py            ← XGBoost + MLflow logging + @champion promotion
+│   ├── train_model.py            ← XGBoost + MLflow logging + model registration
 │   ├── models.py                 ← Pydantic schemas (SensorReading, PredictResponse)
 │   ├── predictive_maintenance.csv
 │   └── tests/                    ← pytest suite (functional + auth)
@@ -59,7 +59,7 @@ Two CSV files are the only coupling between twin and pipeline — no HTTP calls,
 
 | File | Writer | Reader | Purpose |
 |---|---|---|---|
-| `data/telemetry_stream.csv` | twin (`emit_telemetry`) | pipeline (`raw_telemetry` asset) | Sensor readings flowing forward |
+| `data/telemetry_stream.csv` | twin (`stream_telemetry`) | pipeline (`raw_telemetry` asset) | Sensor readings flowing forward |
 | `data/predictions.csv` | pipeline (`write_predictions` asset) | twin (watchdog file-watcher) | Anomaly flags flowing back |
 
 The twin watches `data/predictions.csv` using Python `watchdog` (OS filesystem events, not a polling loop). When a new row appears with `anomaly=True`, it updates that machine's visual state to `ALERT`. Do not add additional coupling points — keeping this to two files is a deliberate design choice that stays simple and explainable.
@@ -92,7 +92,7 @@ docker compose up --build
 
 # ── Individual components (local dev, no Docker) ──────────────────────────────
 cd pipeline && python train_model.py                   # train + log to MLflow
-uvicorn pipeline.api:app --reload --port 8000          # API (run from repo root)
+cd pipeline && uvicorn api:app --reload --port 8000    # API (run from pipeline/ — imports are bare: `from models import …`)
 dbt run --project-dir dbt/ --profiles-dir dbt/         # transform data
 dagster dev -f orchestration/dagster_pipeline.py       # Dagster UI
 mlflow server --host 0.0.0.0 --port 5001               # MLflow tracking server
@@ -179,7 +179,7 @@ Do not modify the twin's internal simulation logic — only its I/O interface.
 ### Layer 2 — ML Pipeline (`pipeline/`)
 Failure classifier operating on operational parameters from `telemetry_stream.csv`.
 
-- `train_model.py` — trains XGBoost on `predictive_maintenance.csv` (AI4I 2020), wraps run in `mlflow.start_run()`, logs params + metrics (F1, precision), registers model, sets `@champion` alias on best run. RandomForest is used only for feature importance audit — XGBoost is the serving model.
+- `train_model.py` — trains XGBoost on `predictive_maintenance.csv` (AI4I 2020), wraps run in `mlflow.start_run()`, logs params + metrics (F1, precision), and registers a new model version. It does **not** set the `@champion` alias — promotion is gated by `model_health_check` (the single promotion authority), so a standalone or CI run registers a version without auto-promoting it. RandomForest is used only for feature importance audit — XGBoost is the serving model.
 - `api.py` — `POST /v1/predict` accepts `SensorReading` (Pydantic), loads model via MLflow alias, returns `{ machine_id, anomaly: bool, confidence: float }`.
 - `models.py` — Pydantic schemas. Source of truth for the request/response contract.
 

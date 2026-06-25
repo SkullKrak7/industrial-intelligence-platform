@@ -13,9 +13,9 @@ from xgboost import XGBClassifier
 
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
 MODEL_NAME          = os.getenv("MLFLOW_MODEL_NAME", "FailureClassifier")
-# 0.70 is calibrated to the AI4I 2020 dataset: 3-feature XGBoost achieves ~0.737 macro-F1.
-# Macro average is penalised by the ~4% minority class; 0.85 would never be met.
-F1_THRESHOLD        = float(os.getenv("F1_THRESHOLD", "0.70"))
+# This script trains and registers only. Promotion to @champion is gated by
+# F1_THRESHOLD inside the Dagster model_health_check asset — the single
+# promotion authority. Standalone/CI runs register a version but never promote.
 
 # 1. Load and clean
 df = pd.read_csv("predictive_maintenance.csv")
@@ -103,7 +103,6 @@ with open("model.pkl", "wb") as f:
 try:
     import mlflow
     import mlflow.sklearn
-    from mlflow.tracking import MlflowClient
 
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     with mlflow.start_run() as run:
@@ -132,12 +131,10 @@ try:
         run_id = run.info.run_id
 
     mv = mlflow.register_model(f"runs:/{run_id}/model", MODEL_NAME)
-    client = MlflowClient()
-    if f1_macro >= F1_THRESHOLD:
-        client.set_registered_model_alias(MODEL_NAME, "champion", mv.version)
-        print(f"✓ {MODEL_NAME} v{mv.version} → @champion  (F1={f1_macro:.4f})")
-    else:
-        print(f"✗ F1={f1_macro:.4f} < {F1_THRESHOLD} — @champion unchanged")
+    # Registration only — promotion to @champion is deferred to the Dagster
+    # model_health_check asset (the single promotion authority), so a model
+    # below threshold can never auto-serve.
+    print(f"Registered {MODEL_NAME} v{mv.version}  (F1={f1_macro:.4f})")
     print(f"MLflow run: {run_id}")
 
 except Exception as e:
