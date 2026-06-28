@@ -2,6 +2,7 @@
 dagster
 dagster-webserver
 dbt-duckdb
+dbt-bigquery
 
 # Data
 pandas
