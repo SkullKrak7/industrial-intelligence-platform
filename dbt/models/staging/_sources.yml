@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Landing tables loaded outside dbt. Used only by warehouse targets that
+      cannot read a local CSV from SQL (BigQuery). The DuckDB target reads the
+      CSV directly via read_csv_auto, so this source is unreferenced there.
+    database: "{{ env_var('GCP_PROJECT', '') }}"
+    schema: "{{ env_var('BQ_DATASET', 'industrial_intelligence') }}"
+    tables:
+      - name: telemetry_stream
+        description: Raw telemetry rows loaded by scripts/bq_load_telemetry.sh.

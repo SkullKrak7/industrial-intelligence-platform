@@ -10,7 +10,7 @@
 |---|---|
 | API | FastAPI + uvicorn (migrated from Flask) |
 | ML | XGBoost + scikit-learn + MLflow (experiment tracking + model registry) |
-| Data transform | dbt + DuckDB (local, zero-infra, runs in-process) |
+| Data transform | dbt + DuckDB (local, zero-infra, runs in-process) — optional BigQuery target |
 | Orchestration | Dagster (5 assets + daily schedule) |
 | Digital Twin | Python asyncio simulation (`twin/`) |
 | Observability | Prometheus + Loki + Promtail + Grafana |
@@ -190,6 +190,14 @@ Three SQL model layers against DuckDB (in-process, no infra):
 - `mart_equipment_health` — per-machine aggregates: `avg_tool_wear`, `total_failures`, `peak_power`
 
 `dbt/models/schema.yml` defines column-level tests — `not_null` on `machine_id` in all three model layers, plus `unique` on `machine_id` in the mart model (enforcing one row per machine in the aggregated output). Dagster calls `dbt run`. This is the entire data engineering layer.
+
+**Warehouse targets.** The default `dev` target is DuckDB (zero-infra). A `bigquery` target is also wired in `dbt/profiles.yml` (OAuth/ADC auth — no keyfile). The same three models run on both: the DuckDB-specific `read_csv_auto` ingestion and the `double` type are abstracted behind the `raw_telemetry_source()` and `float64_type()` macros in `dbt/macros/cross_db.sql`, which branch on `target.type`. To run against BigQuery:
+```bash
+gcloud auth application-default login
+GCP_PROJECT=<proj> scripts/bq_load_telemetry.sh          # load CSV → raw landing table
+GCP_PROJECT=<proj> dbt run --project-dir dbt/ --profiles-dir dbt/ --target bigquery
+```
+Do not add warehouse-specific SQL directly to a model — branch in a `cross_db.sql` macro so both targets keep compiling.
 
 ### Layer 4 — Orchestration (`orchestration/`)
 Five Dagster assets in dependency order:

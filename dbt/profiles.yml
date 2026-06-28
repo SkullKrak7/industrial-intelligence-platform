@@ -5,3 +5,16 @@ industrial_intelligence:
       type: duckdb
       path: "{{ env_var('DUCKDB_PATH', 'data/warehouse.duckdb') }}"
       threads: 4
+
+    # Cloud warehouse target. Auth via Application Default Credentials
+    # (run `gcloud auth application-default login`) — no keyfile, no secret in repo.
+    # Load the raw CSV first with scripts/bq_load_telemetry.sh, then:
+    #   dbt run --project-dir dbt/ --profiles-dir dbt/ --target bigquery
+    bigquery:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT') }}"
+      dataset: "{{ env_var('BQ_DATASET', 'industrial_intelligence') }}"
+      location: "{{ env_var('BQ_LOCATION', 'US') }}"
+      threads: 4
+      priority: interactive
